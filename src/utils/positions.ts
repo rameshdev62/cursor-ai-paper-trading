@@ -1,5 +1,4 @@
 import type { PaperTrade, Position } from '../types';
-import { getLatestPrice } from './mockPrices';
 
 export function computePositions(trades: PaperTrade[]): Position[] {
   const ledger: Record<string, { qty: number; cost: number; name: string }> = {};
@@ -29,7 +28,7 @@ export function computePositions(trades: PaperTrade[]): Position[] {
   return Object.entries(ledger)
     .filter(([, row]) => row.qty > 0)
     .map(([symbol, row]) => {
-      const currentPrice = getLatestPrice(symbol);
+      const currentPrice = 0;
       const avgCost = row.cost / row.qty;
       const costBasis = avgCost * row.qty;
       const marketValue = currentPrice * row.qty;

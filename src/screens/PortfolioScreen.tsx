@@ -30,10 +30,10 @@ export function PortfolioScreen() {
       >
         <Text style={styles.label}>Total portfolio</Text>
         <Text style={styles.balance}>
-          ${portfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+         ₹ {portfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </Text>
         <Text style={styles.cashLine}>
-          Cash ${balance.toFixed(2)} · {positions.length} open position
+          Cash ₹ {balance.toFixed(2)} · {positions.length} open position
           {positions.length === 1 ? '' : 's'}
         </Text>
       </LinearGradient>
@@ -71,7 +71,7 @@ export function PortfolioScreen() {
                   {item.side.toUpperCase()} {item.quantity} {item.symbol}
                 </Text>
                 <Text style={styles.tradeMeta}>
-                  @ ${item.price.toFixed(2)} · {new Date(item.timestamp).toLocaleString()}
+                  @ ₹ {item.price.toFixed(2)} · {new Date(item.timestamp).toLocaleString()}
                 </Text>
               </View>
               <Text
@@ -80,7 +80,7 @@ export function PortfolioScreen() {
                   { color: item.side === 'buy' ? colors.sell : colors.buy },
                 ]}
               >
-                {item.side === 'buy' ? '-' : '+'}$
+                {item.side === 'buy' ? '-' : '+'} ₹ 
                 {(item.price * item.quantity).toFixed(2)}
               </Text>
             </View>

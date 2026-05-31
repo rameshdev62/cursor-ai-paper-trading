@@ -1,52 +1,175 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
+  ActivityIndicator,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { WatchlistItem } from '../types';
-import { POPULAR_SYMBOLS } from '../utils/mockPrices';
+import type { WatchlistEntryInput, WatchlistItem } from '../types';
+import {
+  formatSymbolLabel,
+  loadNfoSymbols,
+  loadNseSymbols,
+  searchSymbols,
+  type CatalogSymbol,
+} from '../utils/symbolCatalog';
 import { colors, radius, spacing } from '../theme/colors';
 
 type Props = {
   visible: boolean;
   editing: WatchlistItem | null;
   onClose: () => void;
-  onSave: (symbol: string, name: string) => Promise<boolean>;
+  onSave: (entry: WatchlistEntryInput) => Promise<boolean>;
 };
 
+function catalogRowToSelected(editing: WatchlistItem): CatalogSymbol {
+  return {
+    exchange: editing.exchange ?? 'NFO',
+    token: editing.token ?? '',
+    lotSize: '',
+    symbol: editing.name,
+    tradingSymbol: editing.tradingSymbol ?? editing.symbol,
+  };
+}
+
+function SuggestionSection({
+  title,
+  items,
+  selected,
+  onPick,
+}: {
+  title: string;
+  items: CatalogSymbol[];
+  selected: CatalogSymbol | null;
+  onPick: (row: CatalogSymbol) => void;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {items.map((item) => (
+        <Pressable
+          key={`${item.exchange}-${item.token}-${item.tradingSymbol}`}
+          style={({ pressed }) => [
+            styles.suggestionRow,
+            pressed && styles.suggestionRowPressed,
+            selected?.token === item.token &&
+              selected.tradingSymbol === item.tradingSymbol &&
+              selected.exchange === item.exchange &&
+              styles.suggestionRowSelected,
+          ]}
+          onPress={() => onPick(item)}
+        >
+          <Text style={styles.suggestionName}>{item.symbol}</Text>
+          <Text style={styles.suggestionMeta} numberOfLines={1}>
+            {formatSymbolLabel(item)}
+          </Text>
+          <Text style={styles.suggestionToken}>
+            {item.exchange} · token {item.token}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export function WatchlistFormModal({ visible, editing, onClose, onSave }: Props) {
-  const [symbol, setSymbol] = useState('');
-  const [name, setName] = useState('');
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<CatalogSymbol | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
+  const [nfoCatalog, setNfoCatalog] = useState<CatalogSymbol[]>([]);
+  const [nseCatalog, setNseCatalog] = useState<CatalogSymbol[]>([]);
 
   useEffect(() => {
-    if (visible) {
-      setSymbol(editing?.symbol ?? '');
-      setName(editing?.name ?? '');
-      setError('');
-    }
+    if (!visible) return;
+
+    setQuery(editing?.name ?? editing?.symbol ?? '');
+    setSelected(editing?.token ? catalogRowToSelected(editing) : null);
+    setError('');
+    setCatalogError('');
+
+    let cancelled = false;
+    setCatalogLoading(true);
+
+    Promise.all([loadNfoSymbols(), loadNseSymbols()])
+      .then(([nfo, nse]) => {
+        if (cancelled) return;
+        setNfoCatalog(nfo);
+        setNseCatalog(nse);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogError('Could not load NFO/NSE symbol lists.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [visible, editing]);
+
+  const nseSuggestions = useMemo(() => {
+    if (!nseCatalog.length || query.trim().length < 1) return [];
+    return searchSymbols(nseCatalog, query, 12);
+  }, [nseCatalog, query]);
+
+  const nfoSuggestions = useMemo(() => {
+    if (!nfoCatalog.length || query.trim().length < 1) return [];
+    return searchSymbols(nfoCatalog, query, 12);
+  }, [nfoCatalog, query]);
+
+  const hasResults = nseSuggestions.length > 0 || nfoSuggestions.length > 0;
+
+  const pickRow = (row: CatalogSymbol) => {
+    setSelected(row);
+    setQuery(row.symbol);
+    setError('');
+  };
 
   const submit = async () => {
     setSaving(true);
     setError('');
-    const ok = await onSave(symbol, name);
+    console.log("selected",selected);
+    const entry: WatchlistEntryInput = selected
+      ? {
+          symbol: selected.symbol,
+          name: selected.symbol,
+          token: selected.token,
+          exchange: selected.exchange,
+          tradingSymbol: selected.tradingSymbol,
+        }
+      : {
+          symbol: query.trim().toUpperCase(),
+          name: query.trim(),
+          exchange: 'NSE',
+        };
+
+    if (!entry.symbol && !entry.tradingSymbol) {
+      setSaving(false);
+      setError('Search and select a symbol from NSE or NFO list.');
+      return;
+    }
+
+    const ok = await onSave(entry);
     setSaving(false);
     if (ok) onClose();
-    else setError(editing ? 'Could not update — symbol may already exist' : 'Symbol already in watchlist');
-  };
-
-  const pickPopular = (s: string, n: string) => {
-    setSymbol(s);
-    setName(n);
-    setError('');
+    else {
+      setError(
+        editing ? 'Could not update — symbol may already exist' : 'Symbol already in watchlist'
+      );
+    }
   };
 
   return (
@@ -54,56 +177,88 @@ export function WatchlistFormModal({ visible, editing, onClose, onSave }: Props)
       <View style={styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.title}>{editing ? 'Edit symbol' : 'Add to watchlist'}</Text>
+          <Text style={styles.hint}>Search NSE and NFO symbols by name</Text>
 
-          <Text style={styles.label}>Symbol</Text>
+          <Text style={styles.label}>Search by name</Text>
           <TextInput
             style={styles.input}
-            value={symbol}
-            onChangeText={(t) => setSymbol(t.toUpperCase())}
-            placeholder="e.g. AAPL"
+            value={query}
+            onChangeText={(text) => {
+              setQuery(text);
+              setSelected(null);
+              setError('');
+            }}
+            placeholder="e.g. NIFTY, RELIANCE, ZYDUSLIFE"
             placeholderTextColor={colors.textMuted}
             autoCapitalize="characters"
             editable={!saving}
           />
 
-          <Text style={styles.label}>Name (optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Company name"
-            placeholderTextColor={colors.textMuted}
-            editable={!saving}
-          />
+          {catalogLoading && (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator color={colors.primary} size="small" />
+              <Text style={styles.loadingText}>Loading NSE & NFO symbols…</Text>
+            </View>
+          )}
+
+          {catalogError ? <Text style={styles.error}>{catalogError}</Text> : null}
+
+          {!catalogLoading && (nseCatalog.length > 0 || nfoCatalog.length > 0) && (
+            <Text style={styles.catalogReady}>
+              {nseCatalog.length.toLocaleString()} Equity · {nfoCatalog.length.toLocaleString()} NFO
+              symbols loaded
+            </Text>
+          )}
+
+          {!catalogLoading && query.trim().length > 0 && hasResults && (
+            <ScrollView
+              style={styles.suggestionsBox}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
+              <SuggestionSection
+                title=""
+                items={nseSuggestions}
+                selected={selected}
+                onPick={pickRow}
+              />
+              <SuggestionSection
+                title="NFO"
+                items={nfoSuggestions}
+                selected={selected}
+                onPick={pickRow}
+              />
+            </ScrollView>
+          )}
+
+          {!catalogLoading &&
+            (nseCatalog.length > 0 || nfoCatalog.length > 0) &&
+            query.trim().length > 0 &&
+            !hasResults && (
+              <Text style={styles.noMatches}>No symbols matching "{query.trim()}"</Text>
+            )}
+
+          {selected && (
+            <View style={styles.selectedBox}>
+              <Ionicons name="checkmark-circle" size={18} color={colors.buy} />
+              <View style={styles.selectedTextWrap}>
+                <Text style={styles.selectedTitle}>
+                  {selected.symbol} ({selected.exchange})
+                </Text>
+                <Text style={styles.selectedSub} numberOfLines={2}>
+                  {formatSymbolLabel(selected)}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          {!editing && (
-            <>
-              <Text style={styles.popularLabel}>Popular picks</Text>
-              <FlatList
-                data={POPULAR_SYMBOLS}
-                keyExtractor={(i) => i.symbol}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.chipsList}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={styles.chip}
-                    onPress={() => pickPopular(item.symbol, item.name)}
-                  >
-                    <Text style={styles.chipText}>{item.symbol}</Text>
-                  </Pressable>
-                )}
-              />
-            </>
-          )}
 
           <View style={styles.actions}>
             <Pressable style={styles.cancelBtn} onPress={onClose} disabled={saving}>
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
-            <Pressable style={styles.saveBtn} onPress={submit} disabled={saving}>
+            <Pressable style={styles.saveBtn} onPress={submit} disabled={saving || catalogLoading}>
               <Ionicons name="checkmark" size={20} color="#fff" />
               <Text style={styles.saveText}>{editing ? 'Update' : 'Add'}</Text>
             </Pressable>
@@ -127,11 +282,17 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    maxHeight: '90%',
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  hint: {
+    color: colors.textMuted,
+    fontSize: 12,
     marginBottom: spacing.md,
   },
   label: {
@@ -149,33 +310,103 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  loadingText: {
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  catalogReady: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: spacing.sm,
+  },
+  noMatches: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
+  },
+  suggestionsBox: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceElevated,
+    maxHeight: 280,
+  },
+  section: {
+    paddingBottom: spacing.xs,
+  },
+  sectionTitle: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.surface,
+  },
+  suggestionRow: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  suggestionRowPressed: {
+    backgroundColor: colors.primaryDark + '22',
+  },
+  suggestionRowSelected: {
+    backgroundColor: colors.primaryDark + '33',
+  },
+  suggestionName: {
+    color: colors.text,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  suggestionMeta: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  suggestionToken: {
+    color: colors.primary,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  selectedBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.buyMuted,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.buy,
+  },
+  selectedTextWrap: {
+    flex: 1,
+  },
+  selectedTitle: {
+    color: colors.text,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  selectedSub: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
   error: {
     color: colors.sell,
     fontSize: 13,
     marginTop: spacing.sm,
-  },
-  popularLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  chipsList: {
-    maxHeight: 44,
-  },
-  chip: {
-    backgroundColor: colors.primaryDark + '33',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    marginRight: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  chipText: {
-    color: colors.primary,
-    fontWeight: '600',
-    fontSize: 13,
   },
   actions: {
     flexDirection: 'row',

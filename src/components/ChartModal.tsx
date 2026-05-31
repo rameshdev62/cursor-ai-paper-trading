@@ -10,9 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EMAStrategyConfig, WatchlistItem } from '../types';
-import { buildChartSeries } from '../utils/mockPrices';
 import { colors, radius, spacing } from '../theme/colors';
-import { TradingViewChart } from './TradingViewChart';
 
 type Props = {
   visible: boolean;
@@ -40,7 +38,7 @@ export function ChartModal({
 
   const series = useMemo(() => {
     if (!item) return null;
-    return buildChartSeries(item.symbol, strategy.fastPeriod, strategy.slowPeriod);
+    // return buildChartSeries(item.symbol, strategy.fastPeriod, strategy.slowPeriod);
   }, [item, strategy]);
 
   if (!item || !series) return null;
@@ -75,10 +73,6 @@ export function ChartModal({
             <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
               <Ionicons name="close" size={24} color={colors.textMuted} />
             </Pressable>
-          </View>
-
-          <View style={styles.chartArea}>
-            <TradingViewChart symbol={item.symbol} strategy={strategy} height={320} />
           </View>
 
           <View style={styles.hintBox}>
@@ -166,10 +160,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xl + 8,
     maxHeight: '94%',
-  },
-  chartArea: {
-    minHeight: 320,
-    marginBottom: spacing.xs,
   },
   handle: {
     width: 40,

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -10,86 +9,200 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import type { WatchlistItem } from '../types';
+
+import type {
+  WatchlistEntryInput,
+  WatchlistItem,
+} from '../types';
+
 import { ChartModal } from '../components/ChartModal';
 import { WatchlistCard } from '../components/WatchlistCard';
 import { WatchlistFormModal } from '../components/WatchlistFormModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+
 import { useWatchlist } from '../hooks/useWatchlist';
 import { usePaperTrading } from '../context/PaperTradingContext';
 import { useStrategy } from '../hooks/useStrategy';
-import { colors, radius, spacing } from '../theme/colors';
+
+import {
+  colors,
+  radius,
+  spacing,
+} from '../theme/colors';
+
+import { openTradingViewChart } from '../utils/tradingView';
 
 export function WatchlistScreen() {
-  const { items, loading, addItem, updateItem, removeItem } = useWatchlist();
+  const {
+    items,
+    loading,
+    addItem,
+    updateItem,
+    removeItem,
+  } = useWatchlist();
+
   const { config: strategy } = useStrategy();
-  const { executeTrade, balance, getHeldQty } = usePaperTrading();
-  const [formVisible, setFormVisible] = useState(false);
-  const [editing, setEditing] = useState<WatchlistItem | null>(null);
-  const [chartItem, setChartItem] = useState<WatchlistItem | null>(null);
+
+  const {
+    executeTrade,
+    balance,
+    getHeldQty,
+  } = usePaperTrading();
+
+  const [formVisible, setFormVisible] =
+    useState(false);
+
+  const [editing, setEditing] =
+    useState<WatchlistItem | null>(null);
+
+  const [tradeItem, setTradeItem] =
+    useState<WatchlistItem | null>(null);
+
+  const [deleteItem, setDeleteItem] =
+    useState<WatchlistItem | null>(null);
 
   const openAdd = () => {
     setEditing(null);
     setFormVisible(true);
   };
 
-  const openEdit = (item: WatchlistItem) => {
+  const openEdit = (
+    item: WatchlistItem
+  ) => {
     setEditing(item);
     setFormVisible(true);
   };
 
-  const confirmDelete = (item: WatchlistItem) => {
-    Alert.alert('Remove from watchlist', `Delete ${item.symbol}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => removeItem(item.id) },
-    ]);
+  const openDeleteDialog = (
+    item: WatchlistItem
+  ) => {
+    setDeleteItem(item);
   };
 
-  const handleSave = async (symbol: string, name: string) => {
-    if (editing) return updateItem(editing.id, symbol, name);
-    return addItem(symbol, name);
+  const handleDeleteConfirm =
+    async () => {
+      if (!deleteItem) return;
+
+      await removeItem(deleteItem.id);
+
+      setDeleteItem(null);
+    };
+
+  const handleSave = async (
+    entry: WatchlistEntryInput
+  ) => {
+    if (editing) {
+      return updateItem(
+        editing.id,
+        entry
+      );
+    }
+
+    return addItem(entry);
+  };
+
+  const handleOpenChart = async (
+    item: WatchlistItem
+  ) => {
+    await openTradingViewChart(item);
   };
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[colors.gradientStart, colors.background]}
+        colors={[
+          colors.gradientStart,
+          colors.background,
+        ]}
         style={styles.header}
       >
-        <Text style={styles.greeting}>Paper Trade</Text>
-        <Text style={styles.balanceLabel}>Virtual balance</Text>
+        <Text style={styles.greeting}>
+          Paper Trade
+        </Text>
+
+        <Text style={styles.balanceLabel}>
+          Virtual Balance
+        </Text>
+
         <Text style={styles.balance}>
-          ${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          ₹
+          {balance.toLocaleString(
+            'en-US',
+            {
+              minimumFractionDigits: 2,
+            }
+          )}
         </Text>
       </LinearGradient>
 
       <View style={styles.listHeader}>
-        <Text style={styles.sectionTitle}>Watchlist</Text>
-        <Pressable style={styles.addBtn} onPress={openAdd}>
-          <Ionicons name="add" size={22} color="#fff" />
-          <Text style={styles.addBtnText}>Add</Text>
+        <Text style={styles.sectionTitle}>
+          Watchlist
+        </Text>
+
+        <Pressable
+          style={styles.addBtn}
+          onPress={openAdd}
+        >
+          <Ionicons
+            name="add"
+            size={22}
+            color="#fff"
+          />
+
+          <Text style={styles.addBtnText}>
+            Add
+          </Text>
         </Pressable>
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.primary} style={styles.loader} />
+        <ActivityIndicator
+          color={colors.primary}
+          style={styles.loader}
+        />
       ) : items.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="list-outline" size={48} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No symbols yet</Text>
-          <Text style={styles.emptyText}>Tap Add to build your watchlist</Text>
+          <Ionicons
+            name="list-outline"
+            size={48}
+            color={colors.textMuted}
+          />
+
+          <Text style={styles.emptyTitle}>
+            No symbols yet
+          </Text>
+
+          <Text style={styles.emptyText}>
+            Tap Add to build your
+            watchlist
+          </Text>
         </View>
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(i) => i.id}
-          contentContainerStyle={styles.list}
+          keyExtractor={(item) =>
+            item.id
+          }
+          contentContainerStyle={
+            styles.list
+          }
           renderItem={({ item }) => (
             <WatchlistCard
               item={item}
               strategy={strategy}
-              onPress={() => setChartItem(item)}
-              onEdit={() => openEdit(item)}
-              onDelete={() => confirmDelete(item)}
+              onPress={() =>
+                handleOpenChart(item)
+              }
+              onTrade={() =>
+                setTradeItem(item)
+              }
+              onEdit={() =>
+                openEdit(item)
+              }
+              onDelete={() =>
+                openDeleteDialog(item)
+              }
             />
           )}
         />
@@ -98,17 +211,43 @@ export function WatchlistScreen() {
       <WatchlistFormModal
         visible={formVisible}
         editing={editing}
-        onClose={() => setFormVisible(false)}
+        onClose={() =>
+          setFormVisible(false)
+        }
         onSave={handleSave}
       />
 
       <ChartModal
-        visible={chartItem != null}
-        item={chartItem}
+        visible={tradeItem != null}
+        item={tradeItem}
         strategy={strategy}
-        heldQty={chartItem ? getHeldQty(chartItem.symbol) : 0}
-        onClose={() => setChartItem(null)}
+        heldQty={
+          tradeItem
+            ? getHeldQty(
+                tradeItem.symbol
+              )
+            : 0
+        }
+        onClose={() =>
+          setTradeItem(null)
+        }
         onTrade={executeTrade}
+      />
+
+      <ConfirmDialog
+        visible={deleteItem !== null}
+        title="Remove Symbol"
+        message={
+          deleteItem
+            ? `Are you sure you want to remove ${deleteItem.symbol} from your watchlist?`
+            : ''
+        }
+        onCancel={() =>
+          setDeleteItem(null)
+        }
+        onConfirm={
+          handleDeleteConfirm
+        }
       />
     </View>
   );
@@ -158,7 +297,6 @@ const styles = StyleSheet.create({
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
     backgroundColor: colors.primaryDark,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -167,6 +305,7 @@ const styles = StyleSheet.create({
   addBtnText: {
     color: '#fff',
     fontWeight: '600',
+    marginLeft: 4,
   },
   list: {
     paddingHorizontal: spacing.lg,

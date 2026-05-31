@@ -1,9 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { WatchlistItem } from '../types';
-import { loadWatchlist, saveWatchlist } from '../utils/storage';
+import type {
+  WatchlistEntryInput,
+  WatchlistItem,
+} from '../types';
+import {
+  loadWatchlist,
+  saveWatchlist,
+} from '../utils/storage';
 
 function makeId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}`;
+}
+
+function entryKey(
+  entry: Pick<
+    WatchlistEntryInput,
+    'token' | 'symbol' | 'tradingSymbol'
+  >
+) {
+  if (entry.token) {
+    return `token:${entry.token}`;
+  }
+
+  return `sym:${(
+    entry.tradingSymbol ?? entry.symbol
+  ).toUpperCase()}`;
 }
 
 export function useWatchlist() {
@@ -11,29 +34,62 @@ export function useWatchlist() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const data = await loadWatchlist();
-    setItems(data);
-    setLoading(false);
+    try {
+      const data = await loadWatchlist();
+      setItems(data);
+    } catch (error) {
+      console.error('Failed to load watchlist', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const persist = useCallback(async (next: WatchlistItem[]) => {
-    setItems(next);
-    await saveWatchlist(next);
-  }, []);
+  const persist = useCallback(
+    async (next: WatchlistItem[]) => {
+      await saveWatchlist(next);
+      setItems(next);
+    },
+    []
+  );
 
   const addItem = useCallback(
-    async (symbol: string, name: string) => {
-      const upper = symbol.trim().toUpperCase();
-      if (!upper) return false;
-      if (items.some((i) => i.symbol === upper)) return false;
+    async (entry: WatchlistEntryInput) => {
+      const symbol = entry.symbol.trim().toUpperCase();
+      const tradingSymbol =
+        entry.tradingSymbol?.trim();
+
+      if (!symbol && !tradingSymbol) {
+        return false;
+      }
+
+      const key = entryKey(entry);
+
+      if (items.some((i) => entryKey(i) === key)) {
+        return false;
+      }
+
       const next: WatchlistItem[] = [
         ...items,
-        { id: makeId(), symbol: upper, name: name.trim() || upper, addedAt: Date.now() },
+        {
+          id: makeId(),
+          symbol: tradingSymbol ?? symbol,
+          tradingSymbol:
+            tradingSymbol ?? symbol,
+          name:
+            entry.name.trim() ||
+            entry.symbol.trim() ||
+            symbol,
+          token: entry.token,
+          exchange:
+            entry.exchange ?? 'NFO',
+          addedAt: Date.now(),
+        },
       ];
+
       await persist(next);
       return true;
     },
@@ -41,13 +97,50 @@ export function useWatchlist() {
   );
 
   const updateItem = useCallback(
-    async (id: string, symbol: string, name: string) => {
-      const upper = symbol.trim().toUpperCase();
-      if (!upper) return false;
-      if (items.some((i) => i.symbol === upper && i.id !== id)) return false;
-      const next = items.map((i) =>
-        i.id === id ? { ...i, symbol: upper, name: name.trim() || upper } : i
+    async (
+      id: string,
+      entry: WatchlistEntryInput
+    ) => {
+      const symbol = entry.symbol.trim().toUpperCase();
+      const tradingSymbol =
+        entry.tradingSymbol?.trim();
+
+      if (!symbol && !tradingSymbol) {
+        return false;
+      }
+
+      const key = entryKey(entry);
+
+      if (
+        items.some(
+          (i) =>
+            i.id !== id &&
+            entryKey(i) === key
+        )
+      ) {
+        return false;
+      }
+
+      const next = items.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              symbol:
+                tradingSymbol ?? symbol,
+              tradingSymbol:
+                tradingSymbol ?? symbol,
+              name:
+                entry.name.trim() ||
+                entry.symbol.trim() ||
+                symbol,
+              token: entry.token,
+              exchange:
+                entry.exchange ??
+                item.exchange,
+            }
+          : item
       );
+
       await persist(next);
       return true;
     },
@@ -56,11 +149,30 @@ export function useWatchlist() {
 
   const removeItem = useCallback(
     async (id: string) => {
-      const next = items.filter((i) => i.id !== id);
-      await persist(next);
+      console.log('REMOVE ITEM CALLED', id);
+  
+      const next = items.filter((item) => item.id !== id);
+  
+      console.log('Before:', items.length);
+      console.log('After:', next.length);
+  
+      setItems(next);
+  
+      try {
+        await saveWatchlist(next);
+      } catch (err) {
+        console.error('Failed to save watchlist', err);
+      }
     },
-    [items, persist]
+    [items]
   );
 
-  return { items, loading, refresh, addItem, updateItem, removeItem };
+  return {
+    items,
+    loading,
+    refresh,
+    addItem,
+    updateItem,
+    removeItem,
+  };
 }

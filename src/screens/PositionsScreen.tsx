@@ -37,15 +37,15 @@ export function PositionsScreen() {
       >
         <Text style={styles.greeting}>Open positions</Text>
         <Text style={styles.totalValue}>
-          ${portfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+         ₹ {portfolioValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </Text>
         <Text style={styles.subLabel}>Total portfolio · cash + holdings</Text>
         <View style={styles.statsRow}>
-          <HeaderStat label="Cash" value={`$${balance.toFixed(0)}`} />
-          <HeaderStat label="Invested" value={`$${positionsValue.toFixed(0)}`} />
+          <HeaderStat label="Cash" value={`₹ ${balance.toFixed(0)}`} />
+          <HeaderStat label="Invested" value={` ₹ ${positionsValue.toFixed(0)}`} />
           <HeaderStat
             label="Unrealized P&L"
-            value={`${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`}
+            value={`${totalPnL >= 0 ? '+' : ''}₹ ${totalPnL.toFixed(2)}`}
             valueColor={totalPnL >= 0 ? colors.buy : colors.sell}
           />
         </View>

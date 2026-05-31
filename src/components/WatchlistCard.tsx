@@ -2,58 +2,145 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { EMAStrategyConfig, WatchlistItem } from '../types';
-import { buildChartSeries, getLatestPrice } from '../utils/mockPrices';
 import { colors, radius, spacing } from '../theme/colors';
 
 type Props = {
   item: WatchlistItem;
   strategy: EMAStrategyConfig;
   onPress: () => void;
+  onTrade: () => void;
   onEdit: () => void;
   onDelete: () => void;
 };
 
-export function WatchlistCard({ item, strategy, onPress, onEdit, onDelete }: Props) {
-  const price = useMemo(() => getLatestPrice(item.symbol), [item.symbol]);
+export function WatchlistCard({
+  item,
+  strategy,
+  onPress,
+  onTrade,
+  onEdit,
+  onDelete,
+}: Props) {
+  const price = useMemo(
+    () => 0,
+    [item.symbol]
+  );
+
   const signal = useMemo(() => {
-    const s = buildChartSeries(item.symbol, strategy.fastPeriod, strategy.slowPeriod);
-    return s.signal;
-  }, [item.symbol, strategy]);
+    const series=[];
+    // const series = buildChartSeries(
+    //   item.symbol,
+    //   strategy.fastPeriod,
+    //   strategy.slowPeriod
+    // );
+
+    return series.signal;
+  }, [item.symbol, strategy.fastPeriod, strategy.slowPeriod]);
 
   const signalColor =
-    signal === 'buy' ? colors.buy : signal === 'sell' ? colors.sell : colors.hold;
+    signal === 'buy'
+      ? colors.buy
+      : signal === 'sell'
+      ? colors.sell
+      : colors.hold;
+
   const signalBg =
-    signal === 'buy' ? colors.buyMuted : signal === 'sell' ? colors.sellMuted : colors.holdMuted;
+    signal === 'buy'
+      ? colors.buyMuted
+      : signal === 'sell'
+      ? colors.sellMuted
+      : colors.holdMuted;
 
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.left}>
         <View style={styles.iconWrap}>
-          <Text style={styles.iconLetter}>{item.symbol.slice(0, 2)}</Text>
+          <Text style={styles.iconLetter}>
+            {item.symbol.slice(0, 2)}
+          </Text>
         </View>
+
         <View style={styles.info}>
-          <Text style={styles.symbol}>{item.symbol}</Text>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text style={styles.symbol}>
+            {item.tradingSymbol ?? item.symbol}
+          </Text>
+
+          <Text
+            style={styles.name}
+            numberOfLines={1}
+          >
             {item.name}
+            {item.exchange
+              ? ` · ${item.exchange}`
+              : ''}
           </Text>
         </View>
       </View>
+
       <View style={styles.right}>
-        <Text style={styles.price}>${price.toFixed(2)}</Text>
-        <View style={[styles.signal, { backgroundColor: signalBg }]}>
-          <Text style={[styles.signalText, { color: signalColor }]}>
-            {signal.toUpperCase()}
+        <Text style={styles.price}>
+          ₹ {price.toFixed(2)}
+        </Text>
+
+        <View
+          style={[
+            styles.signal,
+            { backgroundColor: signalBg },
+          ]}
+        >
+          <Text
+            style={[
+              styles.signalText,
+              { color: signalColor },
+            ]}
+          >
+            {signal}
           </Text>
         </View>
       </View>
+
       <View style={styles.actions}>
-        <Pressable onPress={onEdit} hitSlop={8} style={styles.actionBtn}>
-          <Ionicons name="pencil" size={18} color={colors.primary} />
+        <Pressable
+          style={styles.actionBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            onTrade();
+          }}
+        >
+          <Ionicons
+            name="swap-horizontal"
+            size={18}
+            color={colors.accent}
+          />
         </Pressable>
-        <Pressable onPress={onDelete} hitSlop={8} style={styles.actionBtn}>
-          <Ionicons name="trash-outline" size={18} color={colors.sell} />
+
+        <Pressable
+          style={styles.actionBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
+          <Ionicons
+            name="pencil"
+            size={18}
+            color={colors.primary}
+          />
         </Pressable>
-        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+
+        <Pressable
+          style={styles.actionBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Ionicons
+            name="trash-outline"
+            size={18}
+            color={colors.sell}
+          />
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -71,9 +158,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   left: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
     gap: spacing.md,
   },
   iconWrap: {
@@ -81,8 +168,8 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: radius.md,
     backgroundColor: colors.primaryDark + '40',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   iconLetter: {
     color: colors.primary,
@@ -94,12 +181,12 @@ const styles = StyleSheet.create({
   },
   symbol: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '700',
   },
   name: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 9,
     marginTop: 2,
   },
   right: {
@@ -108,7 +195,7 @@ const styles = StyleSheet.create({
   },
   price: {
     color: colors.accent,
-    fontSize: 15,
+    fontSize: 10,
     fontWeight: '600',
   },
   signal: {

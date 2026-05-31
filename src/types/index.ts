@@ -3,7 +3,18 @@ export interface WatchlistItem {
   symbol: string;
   name: string;
   addedAt: number;
+  token?: string;
+  exchange?: string;
+  tradingSymbol?: string;
 }
+
+export type WatchlistEntryInput = {
+  symbol: string;
+  name: string;
+  token?: string;
+  exchange?: string;
+  tradingSymbol?: string;
+};
 
 export interface PaperTrade {
   id: string;

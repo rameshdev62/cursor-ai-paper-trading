@@ -6,7 +6,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { PaperTradingProvider } from './src/context/PaperTradingContext';
 import { WatchlistScreen } from './src/screens/WatchlistScreen';
-import { StrategyScreen } from './src/screens/StrategyScreen';
 import { PositionsScreen } from './src/screens/PositionsScreen';
 import { PortfolioScreen } from './src/screens/PortfolioScreen';
 import { colors } from './src/theme/colors';
@@ -58,7 +57,6 @@ export default function App() {
         >
           <Tab.Screen name="Watchlist" component={WatchlistScreen} />
           <Tab.Screen name="Positions" component={PositionsScreen} />
-          <Tab.Screen name="Strategy" component={StrategyScreen} />
           <Tab.Screen name="Portfolio" component={PortfolioScreen} />
         </Tab.Navigator>
       </NavigationContainer>

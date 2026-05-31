@@ -14,7 +14,6 @@ import {
   saveBalance,
   saveTrades,
 } from '../utils/storage';
-import { getLatestPrice } from '../utils/mockPrices';
 import { computePositions, getHeldQuantity } from '../utils/positions';
 
 function makeId() {
@@ -89,7 +88,7 @@ export function PaperTradingProvider({ children }: { children: React.ReactNode }
         return { ok: false, message: 'Whole shares only' };
       }
 
-      const price = getLatestPrice(symbol);
+      const price = 0;
       const total = price * quantity;
 
       if (side === 'buy') {
