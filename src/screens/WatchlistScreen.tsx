@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -19,6 +19,7 @@ import { ChartModal } from '../components/ChartModal';
 import { WatchlistCard } from '../components/WatchlistCard';
 import { WatchlistFormModal } from '../components/WatchlistFormModal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { MessageBox, type MessageType } from '../components/MessageBox';
 
 import { useWatchlist } from '../hooks/useWatchlist';
 import { usePaperTrading } from '../context/PaperTradingContext';
@@ -31,6 +32,8 @@ import {
 } from '../theme/colors';
 
 import { openTradingViewChart } from '../utils/tradingView';
+import { setTokenExpiredHandler, setApiBase } from '../utils/api';
+import { loadApiUrl } from '../utils/storage';
 
 export function WatchlistScreen() {
   const {
@@ -60,6 +63,22 @@ export function WatchlistScreen() {
 
   const [deleteItem, setDeleteItem] =
     useState<WatchlistItem | null>(null);
+
+  const [msgBox, setMsgBox] = useState<{ visible: boolean; type: MessageType; title: string; message?: string }>({
+    visible: false, type: 'error', title: '',
+  });
+
+  const showMsg = useCallback((type: MessageType, title: string, message?: string) => {
+    setMsgBox({ visible: true, type, title, message });
+  }, []);
+
+  useEffect(() => {
+    setTokenExpiredHandler(() => showMsg('error', 'Token Expired', 'Session expired. Please login again.'));
+  }, [showMsg]);
+
+  useEffect(() => {
+    loadApiUrl().then(setApiBase);
+  }, []);
 
   const openAdd = () => {
     setEditing(null);
@@ -144,15 +163,8 @@ export function WatchlistScreen() {
           style={styles.addBtn}
           onPress={openAdd}
         >
-          <Ionicons
-            name="add"
-            size={22}
-            color="#fff"
-          />
-
-          <Text style={styles.addBtnText}>
-            Add
-          </Text>
+          <Ionicons name="add" size={22} color="#fff" />
+          <Text style={styles.addBtnText}>Add</Text>
         </Pressable>
       </View>
 
@@ -248,6 +260,14 @@ export function WatchlistScreen() {
         onConfirm={
           handleDeleteConfirm
         }
+      />
+
+      <MessageBox
+        visible={msgBox.visible}
+        type={msgBox.type}
+        title={msgBox.title}
+        message={msgBox.message}
+        onClose={() => setMsgBox((p) => ({ ...p, visible: false }))}
       />
     </View>
   );

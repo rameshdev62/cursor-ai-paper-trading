@@ -36,14 +36,10 @@ export function ChartModal({
 }: Props) {
   const [qty, setQty] = useState('10');
 
-  const series = useMemo(() => {
-    if (!item) return null;
-    // return buildChartSeries(item.symbol, strategy.fastPeriod, strategy.slowPeriod);
-  }, [item, strategy]);
-
-  if (!item || !series) return null;
+  const [signal, setSignal] = useState<'buy' | 'sell' | 'hold'>('hold');
 
   const handleTrade = async (side: 'buy' | 'sell') => {
+    if (!item) return;
     const quantity = parseInt(qty, 10);
     const result = await onTrade(item.symbol, item.name, side, quantity);
     if (result.ok) {
@@ -54,11 +50,13 @@ export function ChartModal({
   };
 
   const signalHint =
-    series.signal === 'buy'
+    signal === 'buy'
       ? 'Fast EMA crossed above slow EMA — strategy suggests BUY'
-      : series.signal === 'sell'
+      : signal === 'sell'
         ? 'Fast EMA crossed below slow EMA — strategy suggests SELL'
         : 'No clear crossover — HOLD or wait';
+
+  if (!item) return null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -78,17 +76,17 @@ export function ChartModal({
           <View style={styles.hintBox}>
             <Ionicons
               name={
-                series.signal === 'buy'
+                signal === 'buy'
                   ? 'trending-up'
-                  : series.signal === 'sell'
+                  : signal === 'sell'
                     ? 'trending-down'
                     : 'remove'
               }
               size={18}
               color={
-                series.signal === 'buy'
+                signal === 'buy'
                   ? colors.buy
-                  : series.signal === 'sell'
+                  : signal === 'sell'
                     ? colors.sell
                     : colors.hold
               }

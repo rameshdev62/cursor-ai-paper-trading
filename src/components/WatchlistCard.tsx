@@ -21,35 +21,14 @@ export function WatchlistCard({
   onEdit,
   onDelete,
 }: Props) {
-  const price = useMemo(
-    () => 0,
-    [item.symbol]
-  );
+  const price = item.price ?? 0;
+  const change = item.change ?? 0;
+  const changePercent = item.changePercent ?? 0;
 
-  const signal = useMemo(() => {
-    const series=[];
-    // const series = buildChartSeries(
-    //   item.symbol,
-    //   strategy.fastPeriod,
-    //   strategy.slowPeriod
-    // );
+  const signal: 'buy' | 'sell' | 'hold' = 'hold';
 
-    return series.signal;
-  }, [item.symbol, strategy.fastPeriod, strategy.slowPeriod]);
-
-  const signalColor =
-    signal === 'buy'
-      ? colors.buy
-      : signal === 'sell'
-      ? colors.sell
-      : colors.hold;
-
-  const signalBg =
-    signal === 'buy'
-      ? colors.buyMuted
-      : signal === 'sell'
-      ? colors.sellMuted
-      : colors.holdMuted;
+  const signalColor = colors.hold;
+  const signalBg = colors.holdMuted;
 
   return (
     <Pressable style={styles.card} onPress={onPress}>
@@ -62,7 +41,9 @@ export function WatchlistCard({
 
         <View style={styles.info}>
           <Text style={styles.symbol}>
-            {item.tradingSymbol ?? item.symbol}
+            {item.exchange === 'NFO'
+              ? `${item.symbol} ${item.strikePrice ?? ''} ${item.optionType ?? ''}`.trim()
+              : item.symbol}
           </Text>
 
           <Text

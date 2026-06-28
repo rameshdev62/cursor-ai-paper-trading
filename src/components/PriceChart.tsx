@@ -77,7 +77,7 @@ export function PriceChart({ series, symbol }: Props) {
     <View style={styles.wrap}>
       <View style={styles.header}>
         <Text style={styles.symbol}>{symbol}</Text>
-        <Text style={styles.price}>${lastPrice.toFixed(2)}</Text>
+        <Text style={styles.price}>₹{lastPrice.toFixed(2)}</Text>
         <View style={[styles.badge, { backgroundColor: `${signalColor}22` }]}>
           <Text style={[styles.badgeText, { color: signalColor }]}>
             EMA {signal.toUpperCase()}

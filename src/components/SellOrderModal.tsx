@@ -48,7 +48,7 @@ export function SellOrderModal({ visible, position, onClose, onSell }: Props) {
     if (result.ok) {
       Alert.alert(
         'Sell order filled',
-        `Sold ${quantity} ${position.symbol} @ $${position.currentPrice.toFixed(2)}`
+        `Sold ₹{quantity} ₹{position.symbol} @ ₹₹{position.currentPrice.toFixed(2)}`
       );
       onClose();
     } else {
@@ -74,9 +74,9 @@ export function SellOrderModal({ visible, position, onClose, onSell }: Props) {
           </View>
 
           <View style={styles.summary}>
-            <SummaryCell label="Held" value={`${position.quantity} shares`} />
-            <SummaryCell label="Avg cost" value={`$${position.avgCost.toFixed(2)}`} />
-            <SummaryCell label="Market" value={`$${position.currentPrice.toFixed(2)}`} />
+            <SummaryCell label="Held" value={`₹{position.quantity} shares`} />
+            <SummaryCell label="Avg cost" value={`₹₹{position.avgCost.toFixed(2)}`} />
+            <SummaryCell label="Market" value={`₹₹{position.currentPrice.toFixed(2)}`} />
           </View>
 
           <Text style={styles.label}>Quantity to sell</Text>
@@ -98,7 +98,7 @@ export function SellOrderModal({ visible, position, onClose, onSell }: Props) {
           <View style={styles.estimate}>
             <View style={styles.estimateRow}>
               <Text style={styles.estimateLabel}>Est. proceeds</Text>
-              <Text style={styles.estimateValue}>${estProceeds.toFixed(2)}</Text>
+              <Text style={styles.estimateValue}>₹{estProceeds.toFixed(2)}</Text>
             </View>
             <View style={styles.estimateRow}>
               <Text style={styles.estimateLabel}>Est. realized P&L</Text>
@@ -108,7 +108,7 @@ export function SellOrderModal({ visible, position, onClose, onSell }: Props) {
                   { color: pnlPositive ? colors.buy : colors.sell },
                 ]}
               >
-                {pnlPositive ? '+' : ''}${estPnL.toFixed(2)}
+                {pnlPositive ? '+' : ''}₹{estPnL.toFixed(2)}
               </Text>
             </View>
           </View>
@@ -120,7 +120,7 @@ export function SellOrderModal({ visible, position, onClose, onSell }: Props) {
           >
             <Ionicons name="arrow-down-circle" size={22} color="#fff" />
             <Text style={styles.sellBtnText}>
-              {submitting ? 'Placing order…' : `Sell ${position.symbol}`}
+              {submitting ? 'Placing order…' : `Sell ₹{position.symbol}`}
             </Text>
           </Pressable>
 

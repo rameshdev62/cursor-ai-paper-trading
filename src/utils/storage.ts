@@ -6,7 +6,12 @@ const KEYS = {
   trades: '@papertrade/trades',
   strategy: '@papertrade/strategy',
   balance: '@papertrade/balance',
+  apiUrl: '@papertrade/apiUrl',
+  equityCsvPath: '@papertrade/equityCsvPath',
+  nfoCsvPath: '@papertrade/nfoCsvPath',
 };
+
+export const DEFAULT_API_URL = 'http://localhost:8001';
 
 export const DEFAULT_BALANCE = 100_000;
 export const DEFAULT_STRATEGY: EMAStrategyConfig = {
@@ -48,4 +53,31 @@ export async function loadBalance(): Promise<number> {
 
 export async function saveBalance(balance: number): Promise<void> {
   await AsyncStorage.setItem(KEYS.balance, String(balance));
+}
+
+export async function loadApiUrl(): Promise<string> {
+  const raw = await AsyncStorage.getItem(KEYS.apiUrl);
+  return raw ?? DEFAULT_API_URL;
+}
+
+export async function saveApiUrl(url: string): Promise<void> {
+  await AsyncStorage.setItem(KEYS.apiUrl, url);
+}
+
+export async function loadEquityCsvPath(): Promise<string> {
+  const raw = await AsyncStorage.getItem(KEYS.equityCsvPath);
+  return raw ?? '';
+}
+
+export async function saveEquityCsvPath(path: string): Promise<void> {
+  await AsyncStorage.setItem(KEYS.equityCsvPath, path);
+}
+
+export async function loadNfoCsvPath(): Promise<string> {
+  const raw = await AsyncStorage.getItem(KEYS.nfoCsvPath);
+  return raw ?? '';
+}
+
+export async function saveNfoCsvPath(path: string): Promise<void> {
+  await AsyncStorage.setItem(KEYS.nfoCsvPath, path);
 }

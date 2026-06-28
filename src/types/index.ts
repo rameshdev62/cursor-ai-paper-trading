@@ -6,6 +6,13 @@ export interface WatchlistItem {
   token?: string;
   exchange?: string;
   tradingSymbol?: string;
+  optionType?: string;
+  strikePrice?: string;
+  expiry?: string;
+  price?: number;
+  change?: number;
+  changePercent?: number;
+  priceUpdatedAt?: number;
 }
 
 export type WatchlistEntryInput = {

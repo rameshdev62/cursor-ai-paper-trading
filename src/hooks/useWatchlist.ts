@@ -1,32 +1,44 @@
 import { useCallback, useEffect, useState } from 'react';
-import type {
-  WatchlistEntryInput,
-  WatchlistItem,
-} from '../types';
+import type { WatchlistEntryInput, WatchlistItem } from '../types';
 import {
-  loadWatchlist,
-  saveWatchlist,
-} from '../utils/storage';
+  fetchWatchlist,
+  addToWatchlist,
+  updateWatchlistItem,
+  deleteWatchlistItem,
+  type ApiWatchlistItem,
+} from '../utils/api';
 
-function makeId() {
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 9)}`;
-}
+function parseOptionFromSymbol(symbol: string): { optionType?: string; strikePrice?: string; expiry?: string } {
+  const upper = symbol.toUpperCase();
 
-function entryKey(
-  entry: Pick<
-    WatchlistEntryInput,
-    'token' | 'symbol' | 'tradingSymbol'
-  >
-) {
-  if (entry.token) {
-    return `token:${entry.token}`;
+  const withExpiry = upper.match(/^(.+?)(\d{2}[A-Z]{3}\d{2,4}?)(C|P|CE|PE)(\d+)$/i);
+  if (withExpiry) {
+    return { expiry: withExpiry[2], strikePrice: withExpiry[4], optionType: withExpiry[3].toUpperCase() === 'C' ? 'CE' : 'PE' };
   }
 
-  return `sym:${(
-    entry.tradingSymbol ?? entry.symbol
-  ).toUpperCase()}`;
+  const simple = upper.match(/^(.+?)(C|P|CE|PE)(\d+)$/i);
+  if (simple) {
+    return { strikePrice: simple[3], optionType: simple[2].toUpperCase() === 'C' ? 'CE' : 'PE' };
+  }
+
+  return {};
+}
+
+function mapApiItem(item: ApiWatchlistItem): WatchlistItem {
+  const parsed = parseOptionFromSymbol(item.symbol);
+  return {
+    id: String(item.id),
+    symbol: item.symbol,
+    name: item.symbol,
+    token: item.token ?? undefined,
+    exchange: item.exchange,
+    tradingSymbol: item.symbol,
+    price: item.ltp ?? 0,
+    optionType: item.option_type ?? parsed.optionType,
+    strikePrice: (item.strike_price ?? parsed.strikePrice ?? '').replace(/\.00$/, ''),
+    expiry: item.expiry ?? parsed.expiry,
+    addedAt: new Date(item.added_at).getTime(),
+  };
 }
 
 export function useWatchlist() {
@@ -35,8 +47,8 @@ export function useWatchlist() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await loadWatchlist();
-      setItems(data);
+      const data = await fetchWatchlist();
+      setItems(data.map(mapApiItem));
     } catch (error) {
       console.error('Failed to load watchlist', error);
     } finally {
@@ -48,123 +60,52 @@ export function useWatchlist() {
     refresh();
   }, [refresh]);
 
-  const persist = useCallback(
-    async (next: WatchlistItem[]) => {
-      await saveWatchlist(next);
-      setItems(next);
-    },
-    []
-  );
-
   const addItem = useCallback(
     async (entry: WatchlistEntryInput) => {
-      const symbol = entry.symbol.trim().toUpperCase();
-      const tradingSymbol =
-        entry.tradingSymbol?.trim();
+      const symbol = (entry.tradingSymbol ?? entry.symbol).trim().toUpperCase();
+      if (!symbol) return false;
 
-      if (!symbol && !tradingSymbol) {
+      try {
+        await addToWatchlist(symbol, entry.exchange ?? 'NSE', entry.token);
+        await refresh();
+        return true;
+      } catch {
         return false;
       }
-
-      const key = entryKey(entry);
-
-      if (items.some((i) => entryKey(i) === key)) {
-        return false;
-      }
-
-      const next: WatchlistItem[] = [
-        ...items,
-        {
-          id: makeId(),
-          symbol: tradingSymbol ?? symbol,
-          tradingSymbol:
-            tradingSymbol ?? symbol,
-          name:
-            entry.name.trim() ||
-            entry.symbol.trim() ||
-            symbol,
-          token: entry.token,
-          exchange:
-            entry.exchange ?? 'NFO',
-          addedAt: Date.now(),
-        },
-      ];
-
-      await persist(next);
-      return true;
     },
-    [items, persist]
+    [refresh]
   );
 
   const updateItem = useCallback(
-    async (
-      id: string,
-      entry: WatchlistEntryInput
-    ) => {
-      const symbol = entry.symbol.trim().toUpperCase();
-      const tradingSymbol =
-        entry.tradingSymbol?.trim();
+    async (id: string, entry: WatchlistEntryInput) => {
+      const symbol = (entry.tradingSymbol ?? entry.symbol).trim().toUpperCase();
+      if (!symbol) return false;
 
-      if (!symbol && !tradingSymbol) {
+      try {
+        await updateWatchlistItem(Number(id), {
+          symbol,
+          exchange: entry.exchange,
+          token: entry.token,
+        });
+        await refresh();
+        return true;
+      } catch {
         return false;
       }
-
-      const key = entryKey(entry);
-
-      if (
-        items.some(
-          (i) =>
-            i.id !== id &&
-            entryKey(i) === key
-        )
-      ) {
-        return false;
-      }
-
-      const next = items.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              symbol:
-                tradingSymbol ?? symbol,
-              tradingSymbol:
-                tradingSymbol ?? symbol,
-              name:
-                entry.name.trim() ||
-                entry.symbol.trim() ||
-                symbol,
-              token: entry.token,
-              exchange:
-                entry.exchange ??
-                item.exchange,
-            }
-          : item
-      );
-
-      await persist(next);
-      return true;
     },
-    [items, persist]
+    [refresh]
   );
 
   const removeItem = useCallback(
     async (id: string) => {
-      console.log('REMOVE ITEM CALLED', id);
-  
-      const next = items.filter((item) => item.id !== id);
-  
-      console.log('Before:', items.length);
-      console.log('After:', next.length);
-  
-      setItems(next);
-  
       try {
-        await saveWatchlist(next);
+        await deleteWatchlistItem(Number(id));
+        setItems((prev) => prev.filter((item) => item.id !== id));
       } catch (err) {
-        console.error('Failed to save watchlist', err);
+        console.error('Failed to delete watchlist item', err);
       }
     },
-    [items]
+    []
   );
 
   return {

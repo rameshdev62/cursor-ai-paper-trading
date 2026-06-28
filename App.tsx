@@ -8,6 +8,7 @@ import { PaperTradingProvider } from './src/context/PaperTradingContext';
 import { WatchlistScreen } from './src/screens/WatchlistScreen';
 import { PositionsScreen } from './src/screens/PositionsScreen';
 import { PortfolioScreen } from './src/screens/PortfolioScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { colors } from './src/theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -28,38 +29,39 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <PaperTradingProvider>
-      <NavigationContainer theme={navTheme}>
-        <StatusBar style="light" />
-        <Tab.Navigator
-          screenOptions={({ route }) => ({
-            headerShown: false,
-            tabBarStyle: {
-              backgroundColor: colors.surface,
-              borderTopColor: colors.border,
-              height: 60,
-              paddingBottom: 8,
-              paddingTop: 8,
-            },
-            tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.textMuted,
-            tabBarIcon: ({ color, size }) => {
-              const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
-                Watchlist: 'eye',
-                Positions: 'briefcase',
-                Strategy: 'pulse',
-                Portfolio: 'wallet',
-              };
-              return (
-                <Ionicons name={icons[route.name] ?? 'ellipse'} size={size} color={color} />
-              );
-            },
-          })}
-        >
-          <Tab.Screen name="Watchlist" component={WatchlistScreen} />
-          <Tab.Screen name="Positions" component={PositionsScreen} />
-          <Tab.Screen name="Portfolio" component={PortfolioScreen} />
-        </Tab.Navigator>
-      </NavigationContainer>
+        <NavigationContainer theme={navTheme}>
+          <StatusBar style="light" />
+          <Tab.Navigator
+            screenOptions={({ route }) => ({
+              headerShown: false,
+              tabBarStyle: {
+                backgroundColor: colors.surface,
+                borderTopColor: colors.border,
+                height: 60,
+                paddingBottom: 8,
+                paddingTop: 8,
+              },
+              tabBarActiveTintColor: colors.primary,
+              tabBarInactiveTintColor: colors.textMuted,
+              tabBarIcon: ({ color, size }) => {
+                const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
+                  Watchlist: 'eye',
+                  Positions: 'briefcase',
+                  Portfolio: 'wallet',
+                  Settings: 'settings-outline',
+                };
+                return (
+                  <Ionicons name={icons[route.name] ?? 'ellipse'} size={size} color={color} />
+                );
+              },
+            })}
+          >
+            <Tab.Screen name="Watchlist" component={WatchlistScreen} />
+            <Tab.Screen name="Positions" component={PositionsScreen} />
+            <Tab.Screen name="Portfolio" component={PortfolioScreen} />
+            <Tab.Screen name="Settings" component={SettingsScreen} />
+          </Tab.Navigator>
+        </NavigationContainer>
       </PaperTradingProvider>
     </SafeAreaProvider>
   );

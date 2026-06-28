@@ -1,5 +1,5 @@
 {
-  "name": "trade-app-cursor-ai",
+  "name": "paper-trading-v2",
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
@@ -9,6 +9,7 @@
     "@react-navigation/native": "^7.2.4",
     "expo": "~56.0.3",
     "expo-asset": "~56.0.15",
+    "expo-document-picker": "^56.0.4",
     "expo-file-system": "~56.0.7",
     "expo-linear-gradient": "~56.0.4",
     "expo-status-bar": "~56.0.4",

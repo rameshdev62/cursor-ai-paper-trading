@@ -32,7 +32,7 @@ function parseNfoLine(line: string): CatalogSymbol | null {
 
   const [exchange, token, lotSize, symbol, tradingSymbol, expiry, instrument, optionType, strikePrice] =
     parts;
-
+    
   if (!exchange || !token || !symbol || !tradingSymbol) return null;
 
   return {
@@ -70,20 +70,30 @@ function parseNseLine(line: string): CatalogSymbol | null {
 }
 
 async function readCsvText(moduleId: number): Promise<string> {
-  const asset = Asset.fromModule(moduleId);
-  await asset.downloadAsync();
-  const uri = asset.localUri ?? asset.uri;
+  if (typeof moduleId === 'string') {
+    const resp = await fetch(moduleId);
+    if (resp.ok) return resp.text();
+    throw new Error(`Failed to fetch CSV: ${resp.status}`);
+  }
+
+  let uri: string | null = null;
+  try {
+    const asset = Asset.fromModule(moduleId);
+    await asset.downloadAsync();
+    uri = asset.localUri ?? asset.uri;
+  } catch {
+    throw new Error('Symbol file could not be loaded.');
+  }
+
   if (!uri) {
     throw new Error('Symbol file could not be loaded.');
   }
 
-  if (uri.startsWith('http') || uri.startsWith('/')) {
-    try {
-      const response = await fetch(uri);
-      if (response.ok) return response.text();
-    } catch {
-      // fall through
-    }
+  try {
+    const response = await fetch(uri);
+    if (response.ok) return response.text();
+  } catch {
+    // fall through
   }
 
   return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
@@ -157,8 +167,49 @@ export async function loadNseSymbols(): Promise<CatalogSymbol[]> {
   return nseLoadPromise;
 }
 
-export async function preloadSymbolCatalogs(): Promise<void> {
-  await Promise.all([loadNfoSymbols(), loadNseSymbols()]);
+export function clearCatalogCache() {
+  cachedNfo = null;
+  cachedNse = null;
+  nfoLoadPromise = null;
+  nseLoadPromise = null;
+}
+
+async function loadCatalogFromPath(
+  path: string,
+  parser: (line: string) => CatalogSymbol | null,
+  label: string
+): Promise<CatalogSymbol[]> {
+  let text: string;
+  try {
+    const response = await fetch(path);
+    if (response.ok) {
+      text = await response.text();
+    } else {
+      throw new Error(`fetch failed: ${response.status}`);
+    }
+  } catch {
+    text = await FileSystem.readAsStringAsync(path, { encoding: FileSystem.EncodingType.UTF8 });
+  }
+  if (!text.trim()) {
+    throw new Error(`${label} CSV is empty.`);
+  }
+  const rows = await parseCsvInChunks(text, parser);
+  if (rows.length === 0) {
+    throw new Error(`No symbols parsed from ${label} CSV.`);
+  }
+  return rows;
+}
+
+export async function loadNfoSymbolsFromPath(path: string): Promise<CatalogSymbol[]> {
+  const rows = await loadCatalogFromPath(path, parseNfoLine, 'NFO');
+  cachedNfo = rows;
+  return rows;
+}
+
+export async function loadNseSymbolsFromPath(path: string): Promise<CatalogSymbol[]> {
+  const rows = await loadCatalogFromPath(path, parseNseLine, 'NSE');
+  cachedNse = rows;
+  return rows;
 }
 
 export function searchSymbols(
@@ -259,6 +310,24 @@ export function searchSymbols(
  * searchOptionByStrike(data,"NIFTY",25000,"CE")
  * searchOptionByStrike(data,"NIFTY",25000,"PE")
  */
+function parseExpiryDate(expiry: string): number {
+  if (!expiry) return Infinity;
+  const cleaned = expiry.replace(/\D/g, '');
+  if (cleaned.length === 6) {
+    const year = 2000 + parseInt(cleaned.slice(0, 2), 10);
+    const month = parseInt(cleaned.slice(2, 4), 10) - 1;
+    const day = parseInt(cleaned.slice(4, 6), 10);
+    return new Date(year, month, day).getTime();
+  }
+  if (cleaned.length === 8) {
+    const year = parseInt(cleaned.slice(0, 4), 10);
+    const month = parseInt(cleaned.slice(4, 6), 10) - 1;
+    const day = parseInt(cleaned.slice(6, 8), 10);
+    return new Date(year, month, day).getTime();
+  }
+  return Infinity;
+}
+
 export function searchOptionByStrike(
   symbols: CatalogSymbol[],
   underlying: string,
@@ -267,18 +336,20 @@ export function searchOptionByStrike(
 ): CatalogSymbol[] {
   const strikeValue = String(strike);
 
-  return symbols.filter(
-    (row) =>
-      row.exchange === 'NFO' &&
-      row.symbol
-        .toUpperCase()
-        .includes(
-          underlying.toUpperCase()
-        ) &&
-      row.optionType?.toUpperCase() ===
-        optionType &&
-      row.strikePrice === strikeValue
-  );
+  return symbols
+    .filter(
+      (row) =>
+        row.exchange === 'NFO' &&
+        row.symbol
+          .toUpperCase()
+          .includes(
+            underlying.toUpperCase()
+          ) &&
+        row.optionType?.toUpperCase() ===
+          optionType &&
+        row.strikePrice === strikeValue
+    )
+    .sort((a, b) => parseExpiryDate(a.expiry ?? '') - parseExpiryDate(b.expiry ?? ''));
 }
 
 /**

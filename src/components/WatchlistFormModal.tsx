@@ -15,10 +15,40 @@ import {
   formatSymbolLabel,
   loadNfoSymbols,
   loadNseSymbols,
+  loadNfoSymbolsFromPath,
+  loadNseSymbolsFromPath,
+  clearCatalogCache,
   searchSymbols,
+  searchOptionByStrike,
+  parseOptionSearch,
   type CatalogSymbol,
 } from '../utils/symbolCatalog';
+import { loadEquityCsvPath, loadNfoCsvPath } from '../utils/storage';
 import { colors, radius, spacing } from '../theme/colors';
+
+function parseExpiry(expiry?: string): Date | null {
+  if (!expiry) return null;
+  const cleaned = expiry.replace(/[^0-9A-Z]/gi, '').toUpperCase();
+
+  const ddMmmYY = cleaned.match(/^(\d{2})([A-Z]{3})(\d{2,4})$/);
+  if (ddMmmYY) {
+    const months: Record<string, number> = {
+      JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
+      JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
+    };
+    const day = parseInt(ddMmmYY[1], 10);
+    const month = months[ddMmmYY[2]] ?? 0;
+    const year = ddMmmYY[3].length === 2 ? 2000 + parseInt(ddMmmYY[3], 10) : parseInt(ddMmmYY[3], 10);
+    return new Date(year, month, day);
+  }
+
+  const yyyymmdd = cleaned.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (yyyymmdd) {
+    return new Date(parseInt(yyyymmdd[1], 10), parseInt(yyyymmdd[2], 10) - 1, parseInt(yyyymmdd[3], 10));
+  }
+
+  return null;
+}
 
 type Props = {
   visible: boolean;
@@ -32,8 +62,11 @@ function catalogRowToSelected(editing: WatchlistItem): CatalogSymbol {
     exchange: editing.exchange ?? 'NFO',
     token: editing.token ?? '',
     lotSize: '',
-    symbol: editing.name,
+    symbol: editing.symbol,
     tradingSymbol: editing.tradingSymbol ?? editing.symbol,
+    optionType: editing.optionType,
+    strikePrice: editing.strikePrice,
+    expiry: editing.expiry,
   };
 }
 
@@ -100,15 +133,34 @@ export function WatchlistFormModal({ visible, editing, onClose, onSave }: Props)
     let cancelled = false;
     setCatalogLoading(true);
 
-    Promise.all([loadNfoSymbols(), loadNseSymbols()])
+    const loadCatalogs = async () => {
+      const [equityPath, nfoPath] = await Promise.all([
+        loadEquityCsvPath(),
+        loadNfoCsvPath(),
+      ]);
+
+      if (equityPath || nfoPath) {
+        clearCatalogCache();
+      }
+
+      const nse = equityPath
+        ? await loadNseSymbolsFromPath(equityPath)
+        : await loadNseSymbols();
+      const nfo = nfoPath
+        ? await loadNfoSymbolsFromPath(nfoPath)
+        : await loadNfoSymbols();
+      return [nfo, nse] as const;
+    };
+
+    loadCatalogs()
       .then(([nfo, nse]) => {
         if (cancelled) return;
         setNfoCatalog(nfo);
         setNseCatalog(nse);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          setCatalogError('Could not load NFO/NSE symbol lists.');
+          setCatalogError(String(err?.message ?? err));
         }
       })
       .finally(() => {
@@ -127,7 +179,40 @@ export function WatchlistFormModal({ visible, editing, onClose, onSave }: Props)
 
   const nfoSuggestions = useMemo(() => {
     if (!nfoCatalog.length || query.trim().length < 1) return [];
-    return searchSymbols(nfoCatalog, query, 12);
+    
+    const optionQuery = parseOptionSearch(query);
+    let results: CatalogSymbol[];
+    if (optionQuery) {
+      results = searchOptionByStrike(
+        nfoCatalog,
+        optionQuery.underlying,
+        optionQuery.strike,
+        optionQuery.optionType
+      );
+    } else {
+      results = searchSymbols(nfoCatalog, query, 50);
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return results
+      .filter((r) => {
+        const d = parseExpiry(r.expiry);
+        return !d || d.getTime() >= today.getTime();
+      })
+      .sort((a, b) => {
+        const aDate = parseExpiry(a.expiry);
+        const bDate = parseExpiry(b.expiry);
+        const aIsCurrent = aDate && aDate.getMonth() === currentMonth && aDate.getFullYear() === currentYear;
+        const bIsCurrent = bDate && bDate.getMonth() === currentMonth && bDate.getFullYear() === currentYear;
+        if (aIsCurrent && !bIsCurrent) return -1;
+        if (!aIsCurrent && bIsCurrent) return 1;
+        return (aDate?.getTime() ?? Infinity) - (bDate?.getTime() ?? Infinity);
+      })
+      .slice(0, 12);
   }, [nfoCatalog, query]);
 
   const hasResults = nseSuggestions.length > 0 || nfoSuggestions.length > 0;
@@ -188,7 +273,7 @@ export function WatchlistFormModal({ visible, editing, onClose, onSave }: Props)
               setSelected(null);
               setError('');
             }}
-            placeholder="e.g. NIFTY, RELIANCE, ZYDUSLIFE"
+            placeholder="e.g. NIFTY, RELIANCE, NIFTY 25000 CE"
             placeholderTextColor={colors.textMuted}
             autoCapitalize="characters"
             editable={!saving}

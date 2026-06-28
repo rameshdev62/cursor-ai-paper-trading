@@ -25,9 +25,9 @@ export function PositionCard({ position, onSell }: Props) {
           </Text>
         </View>
         <View style={styles.valueCol}>
-          <Text style={styles.marketValue}>${position.marketValue.toFixed(2)}</Text>
+          <Text style={styles.marketValue}>₹{position.marketValue.toFixed(2)}</Text>
           <Text style={[styles.pnl, { color: pnlUp ? colors.buy : colors.sell }]}>
-            {pnlUp ? '+' : ''}${position.unrealizedPnL.toFixed(2)} (
+            {pnlUp ? '+' : ''}₹{position.unrealizedPnL.toFixed(2)} (
             {pnlUp ? '+' : ''}
             {position.unrealizedPnLPercent.toFixed(1)}%)
           </Text>
@@ -35,10 +35,10 @@ export function PositionCard({ position, onSell }: Props) {
       </View>
 
       <View style={styles.stats}>
-        <Stat label="Qty" value={`${position.quantity}`} />
-        <Stat label="Avg cost" value={`$${position.avgCost.toFixed(2)}`} />
-        <Stat label="Last" value={`$${position.currentPrice.toFixed(2)}`} />
-        <Stat label="Cost basis" value={`$${position.costBasis.toFixed(2)}`} />
+        <Stat label="Qty" value={`₹{position.quantity}`} />
+        <Stat label="Avg cost" value={`₹₹{position.avgCost.toFixed(2)}`} />
+        <Stat label="Last" value={`₹₹{position.currentPrice.toFixed(2)}`} />
+        <Stat label="Cost basis" value={`₹₹{position.costBasis.toFixed(2)}`} />
       </View>
 
       <Pressable style={styles.sellBtn} onPress={onSell}>
