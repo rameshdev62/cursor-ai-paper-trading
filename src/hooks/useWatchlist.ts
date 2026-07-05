@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { WatchlistEntryInput, WatchlistItem } from '../types';
 import {
   fetchWatchlist,
+  refreshWatchlistLTP,
+  refreshSingleWatchlistLTP,
   addToWatchlist,
   updateWatchlistItem,
   deleteWatchlistItem,
@@ -26,6 +28,14 @@ function parseOptionFromSymbol(symbol: string): { optionType?: string; strikePri
 
 function mapApiItem(item: ApiWatchlistItem): WatchlistItem {
   const parsed = parseOptionFromSymbol(item.symbol);
+  let trendsObj = undefined;
+  if (item.trends) {
+    try {
+      trendsObj = typeof item.trends === 'string' ? JSON.parse(item.trends) : item.trends;
+    } catch (e) {
+      console.error('Failed to parse trends', e);
+    }
+  }
   return {
     id: String(item.id),
     symbol: item.symbol,
@@ -38,21 +48,56 @@ function mapApiItem(item: ApiWatchlistItem): WatchlistItem {
     strikePrice: (item.strike_price ?? parsed.strikePrice ?? '').replace(/\.00$/, ''),
     expiry: item.expiry ?? parsed.expiry,
     addedAt: new Date(item.added_at).getTime(),
+    trends: trendsObj,
   };
 }
 
-export function useWatchlist() {
+export function useWatchlist(watchlistName = 'Default') {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const data = await fetchWatchlist();
+      const data = await fetchWatchlist(watchlistName);
       setItems(data.map(mapApiItem));
     } catch (error) {
       console.error('Failed to load watchlist', error);
     } finally {
       setLoading(false);
+    }
+  }, [watchlistName]);
+
+  const refreshPrices = useCallback(async () => {
+    setLoading(true);
+    try {
+      await refreshWatchlistLTP(watchlistName);
+      await refresh();
+    } catch (error) {
+      console.error('Failed to refresh LTP', error);
+      setLoading(false);
+    }
+  }, [refresh, watchlistName]);
+
+  const refreshSinglePrice = useCallback(async (id: string) => {
+    try {
+      const result = await refreshSingleWatchlistLTP(Number(id));
+      if (result.success) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  ...(result.ltp != null ? { price: result.ltp } : {}),
+                  trends: (result.trends && typeof result.trends === 'object' ? result.trends : {}) as any,
+                }
+              : item
+          )
+        );
+      }
+      return result;
+    } catch (error) {
+      console.error('Failed to refresh single LTP', error);
+      return { success: false, error: String(error) };
     }
   }, []);
 
@@ -66,14 +111,14 @@ export function useWatchlist() {
       if (!symbol) return false;
 
       try {
-        await addToWatchlist(symbol, entry.exchange ?? 'NSE', entry.token);
+        await addToWatchlist(symbol, entry.exchange ?? 'NSE', entry.token, watchlistName);
         await refresh();
         return true;
       } catch {
         return false;
       }
     },
-    [refresh]
+    [refresh, watchlistName]
   );
 
   const updateItem = useCallback(
@@ -112,6 +157,8 @@ export function useWatchlist() {
     items,
     loading,
     refresh,
+    refreshPrices,
+    refreshSinglePrice,
     addItem,
     updateItem,
     removeItem,

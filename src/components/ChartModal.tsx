@@ -7,8 +7,11 @@ import {
   Text,
   TextInput,
   View,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { EMAStrategyConfig, WatchlistItem } from '../types';
 import { colors, radius, spacing } from '../theme/colors';
 
@@ -35,6 +38,7 @@ export function ChartModal({
   onTrade,
 }: Props) {
   const [qty, setQty] = useState('10');
+  const insets = useSafeAreaInsets();
 
   const [signal, setSignal] = useState<'buy' | 'sell' | 'hold'>('hold');
 
@@ -60,87 +64,92 @@ export function ChartModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <View style={styles.topRow}>
-            <View>
-              <Text style={styles.title}>{item.symbol}</Text>
-              <Text style={styles.subtitle}>{item.name}</Text>
-            </View>
-            <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
-              <Ionicons name="close" size={24} color={colors.textMuted} />
-            </Pressable>
-          </View>
-
-          <View style={styles.hintBox}>
-            <Ionicons
-              name={
-                signal === 'buy'
-                  ? 'trending-up'
-                  : signal === 'sell'
-                    ? 'trending-down'
-                    : 'remove'
-              }
-              size={18}
-              color={
-                signal === 'buy'
-                  ? colors.buy
-                  : signal === 'sell'
-                    ? colors.sell
-                    : colors.hold
-              }
-            />
-            <Text style={styles.hintText}>{signalHint}</Text>
-          </View>
-
-          <View style={styles.qtyHeader}>
-            <Text style={styles.label}>Quantity (paper)</Text>
-            {heldQty > 0 && (
-              <Pressable onPress={() => setQty(String(heldQty))}>
-                <Text style={styles.heldLink}>
-                  You hold {heldQty} · tap to sell all
-                </Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.overlay}>
+          <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + spacing.md }]}>
+            <View style={styles.handle} />
+            <View style={styles.topRow}>
+              <View>
+                <Text style={styles.title}>{item.symbol}</Text>
+                <Text style={styles.subtitle}>{item.name}</Text>
+              </View>
+              <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
               </Pressable>
-            )}
-          </View>
-          <TextInput
-            style={styles.input}
-            value={qty}
-            onChangeText={setQty}
-            keyboardType="number-pad"
-            placeholder="10"
-            placeholderTextColor={colors.textMuted}
-          />
-          {heldQty === 0 && (
-            <Text style={styles.sellNote}>
-              Sell requires an open position — buy first or use the Positions tab
-            </Text>
-          )}
+            </View>
 
-          <View style={styles.actions}>
-            <Pressable
-              style={[styles.tradeBtn, styles.buyBtn]}
-              onPress={() => handleTrade('buy')}
-            >
-              <Ionicons name="arrow-up-circle" size={20} color="#fff" />
-              <Text style={styles.tradeBtnText}>Buy</Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.tradeBtn,
-                styles.sellBtn,
-                heldQty === 0 && styles.tradeBtnDisabled,
-              ]}
-              onPress={() => handleTrade('sell')}
-              disabled={heldQty === 0}
-            >
-              <Ionicons name="arrow-down-circle" size={20} color="#fff" />
-              <Text style={styles.tradeBtnText}>Sell</Text>
-            </Pressable>
+            <View style={styles.hintBox}>
+              <Ionicons
+                name={
+                  signal === 'buy'
+                    ? 'trending-up'
+                    : signal === 'sell'
+                      ? 'trending-down'
+                      : 'remove'
+                }
+                size={18}
+                color={
+                  signal === 'buy'
+                    ? colors.buy
+                    : signal === 'sell'
+                      ? colors.sell
+                      : colors.hold
+                }
+              />
+              <Text style={styles.hintText}>{signalHint}</Text>
+            </View>
+
+            <View style={styles.qtyHeader}>
+              <Text style={styles.label}>Quantity (paper)</Text>
+              {heldQty > 0 && (
+                <Pressable onPress={() => setQty(String(heldQty))}>
+                  <Text style={styles.heldLink}>
+                    You hold {heldQty} · tap to sell all
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            <TextInput
+              style={styles.input}
+              value={qty}
+              onChangeText={setQty}
+              keyboardType="number-pad"
+              placeholder="10"
+              placeholderTextColor={colors.textMuted}
+            />
+            {heldQty === 0 && (
+              <Text style={styles.sellNote}>
+                Sell requires an open position — buy first or use the Positions tab
+              </Text>
+            )}
+
+            <View style={styles.actions}>
+              <Pressable
+                style={[styles.tradeBtn, styles.buyBtn]}
+                onPress={() => handleTrade('buy')}
+              >
+                <Ionicons name="arrow-up-circle" size={20} color="#fff" />
+                <Text style={styles.tradeBtnText}>Buy</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.tradeBtn,
+                  styles.sellBtn,
+                  heldQty === 0 && styles.tradeBtnDisabled,
+                ]}
+                onPress={() => handleTrade('sell')}
+                disabled={heldQty === 0}
+              >
+                <Ionicons name="arrow-down-circle" size={20} color="#fff" />
+                <Text style={styles.tradeBtnText}>Sell</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

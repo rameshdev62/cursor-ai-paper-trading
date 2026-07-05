@@ -8,6 +8,8 @@ import {
   Text,
   TextInput,
   View,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { WatchlistEntryInput, WatchlistItem } from '../types';
@@ -21,34 +23,12 @@ import {
   searchSymbols,
   searchOptionByStrike,
   parseOptionSearch,
+  parseExpiry,
   type CatalogSymbol,
 } from '../utils/symbolCatalog';
 import { loadEquityCsvPath, loadNfoCsvPath } from '../utils/storage';
 import { colors, radius, spacing } from '../theme/colors';
 
-function parseExpiry(expiry?: string): Date | null {
-  if (!expiry) return null;
-  const cleaned = expiry.replace(/[^0-9A-Z]/gi, '').toUpperCase();
-
-  const ddMmmYY = cleaned.match(/^(\d{2})([A-Z]{3})(\d{2,4})$/);
-  if (ddMmmYY) {
-    const months: Record<string, number> = {
-      JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
-      JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
-    };
-    const day = parseInt(ddMmmYY[1], 10);
-    const month = months[ddMmmYY[2]] ?? 0;
-    const year = ddMmmYY[3].length === 2 ? 2000 + parseInt(ddMmmYY[3], 10) : parseInt(ddMmmYY[3], 10);
-    return new Date(year, month, day);
-  }
-
-  const yyyymmdd = cleaned.match(/^(\d{4})(\d{2})(\d{2})$/);
-  if (yyyymmdd) {
-    return new Date(parseInt(yyyymmdd[1], 10), parseInt(yyyymmdd[2], 10) - 1, parseInt(yyyymmdd[3], 10));
-  }
-
-  return null;
-}
 
 type Props = {
   visible: boolean;
@@ -143,12 +123,30 @@ export function WatchlistFormModal({ visible, editing, onClose, onSave }: Props)
         clearCatalogCache();
       }
 
-      const nse = equityPath
-        ? await loadNseSymbolsFromPath(equityPath)
-        : await loadNseSymbols();
-      const nfo = nfoPath
-        ? await loadNfoSymbolsFromPath(nfoPath)
-        : await loadNfoSymbols();
+      let nse: CatalogSymbol[];
+      if (equityPath) {
+        try {
+          nse = await loadNseSymbolsFromPath(equityPath);
+        } catch (err) {
+          console.warn('Failed to load custom NSE symbols, falling back to bundled:', err);
+          nse = await loadNseSymbols();
+        }
+      } else {
+        nse = await loadNseSymbols();
+      }
+
+      let nfo: CatalogSymbol[];
+      if (nfoPath) {
+        try {
+          nfo = await loadNfoSymbolsFromPath(nfoPath);
+        } catch (err) {
+          console.warn('Failed to load custom NFO symbols, falling back to bundled:', err);
+          nfo = await loadNfoSymbols();
+        }
+      } else {
+        nfo = await loadNfoSymbols();
+      }
+
       return [nfo, nse] as const;
     };
 
@@ -259,97 +257,102 @@ export function WatchlistFormModal({ visible, editing, onClose, onSave }: Props)
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{editing ? 'Edit symbol' : 'Add to watchlist'}</Text>
-          <Text style={styles.hint}>Search NSE and NFO symbols by name</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.card}>
+            <Text style={styles.title}>{editing ? 'Edit symbol' : 'Add to watchlist'}</Text>
+            <Text style={styles.hint}>Search NSE and NFO symbols by name</Text>
 
-          <Text style={styles.label}>Search by name</Text>
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={(text) => {
-              setQuery(text);
-              setSelected(null);
-              setError('');
-            }}
-            placeholder="e.g. NIFTY, RELIANCE, NIFTY 25000 CE"
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="characters"
-            editable={!saving}
-          />
+            <Text style={styles.label}>Search by name</Text>
+            <TextInput
+              style={styles.input}
+              value={query}
+              onChangeText={(text) => {
+                setQuery(text);
+                setSelected(null);
+                setError('');
+              }}
+              placeholder="e.g. NIFTY, RELIANCE, NIFTY 25000 CE"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="characters"
+              editable={!saving}
+            />
 
-          {catalogLoading && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={colors.primary} size="small" />
-              <Text style={styles.loadingText}>Loading NSE & NFO symbols…</Text>
-            </View>
-          )}
-
-          {catalogError ? <Text style={styles.error}>{catalogError}</Text> : null}
-
-          {!catalogLoading && (nseCatalog.length > 0 || nfoCatalog.length > 0) && (
-            <Text style={styles.catalogReady}>
-              {nseCatalog.length.toLocaleString()} Equity · {nfoCatalog.length.toLocaleString()} NFO
-              symbols loaded
-            </Text>
-          )}
-
-          {!catalogLoading && query.trim().length > 0 && hasResults && (
-            <ScrollView
-              style={styles.suggestionsBox}
-              keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled
-            >
-              <SuggestionSection
-                title=""
-                items={nseSuggestions}
-                selected={selected}
-                onPick={pickRow}
-              />
-              <SuggestionSection
-                title="NFO"
-                items={nfoSuggestions}
-                selected={selected}
-                onPick={pickRow}
-              />
-            </ScrollView>
-          )}
-
-          {!catalogLoading &&
-            (nseCatalog.length > 0 || nfoCatalog.length > 0) &&
-            query.trim().length > 0 &&
-            !hasResults && (
-              <Text style={styles.noMatches}>No symbols matching "{query.trim()}"</Text>
+            {catalogLoading && (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={colors.primary} size="small" />
+                <Text style={styles.loadingText}>Loading NSE & NFO symbols…</Text>
+              </View>
             )}
 
-          {selected && (
-            <View style={styles.selectedBox}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.buy} />
-              <View style={styles.selectedTextWrap}>
-                <Text style={styles.selectedTitle}>
-                  {selected.symbol} ({selected.exchange})
-                </Text>
-                <Text style={styles.selectedSub} numberOfLines={2}>
-                  {formatSymbolLabel(selected)}
-                </Text>
+            {catalogError ? <Text style={styles.error}>{catalogError}</Text> : null}
+
+            {!catalogLoading && (nseCatalog.length > 0 || nfoCatalog.length > 0) && (
+              <Text style={styles.catalogReady}>
+                {nseCatalog.length.toLocaleString()} Equity · {nfoCatalog.length.toLocaleString()} NFO
+                symbols loaded
+              </Text>
+            )}
+
+            {!catalogLoading && query.trim().length > 0 && hasResults && (
+              <ScrollView
+                style={styles.suggestionsBox}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+              >
+                <SuggestionSection
+                  title=""
+                  items={nseSuggestions}
+                  selected={selected}
+                  onPick={pickRow}
+                />
+                <SuggestionSection
+                  title="NFO"
+                  items={nfoSuggestions}
+                  selected={selected}
+                  onPick={pickRow}
+                />
+              </ScrollView>
+            )}
+
+            {!catalogLoading &&
+              (nseCatalog.length > 0 || nfoCatalog.length > 0) &&
+              query.trim().length > 0 &&
+              !hasResults && (
+                <Text style={styles.noMatches}>No symbols matching "{query.trim()}"</Text>
+              )}
+
+            {selected && (
+              <View style={styles.selectedBox}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.buy} />
+                <View style={styles.selectedTextWrap}>
+                  <Text style={styles.selectedTitle}>
+                    {selected.symbol} ({selected.exchange})
+                  </Text>
+                  <Text style={styles.selectedSub} numberOfLines={2}>
+                    {formatSymbolLabel(selected)}
+                  </Text>
+                </View>
               </View>
+            )}
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <View style={styles.actions}>
+              <Pressable style={styles.cancelBtn} onPress={onClose} disabled={saving}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.saveBtn} onPress={submit} disabled={saving || catalogLoading}>
+                <Ionicons name="checkmark" size={20} color="#fff" />
+                <Text style={styles.saveText}>{editing ? 'Update' : 'Add'}</Text>
+              </Pressable>
             </View>
-          )}
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelBtn} onPress={onClose} disabled={saving}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-            <Pressable style={styles.saveBtn} onPress={submit} disabled={saving || catalogLoading}>
-              <Ionicons name="checkmark" size={20} color="#fff" />
-              <Text style={styles.saveText}>{editing ? 'Update' : 'Add'}</Text>
-            </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

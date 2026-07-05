@@ -1,3 +1,14 @@
+export type TrendDirection = 'bull' | 'bear' | null;
+
+export interface TrendData {
+  '1m': TrendDirection;
+  '5m': TrendDirection;
+  '15m': TrendDirection;
+  '1h': TrendDirection;
+  '4h': TrendDirection;
+  '1d': TrendDirection;
+}
+
 export interface WatchlistItem {
   id: string;
   symbol: string;
@@ -13,6 +24,7 @@ export interface WatchlistItem {
   change?: number;
   changePercent?: number;
   priceUpdatedAt?: number;
+  trends?: TrendData;
 }
 
 export type WatchlistEntryInput = {

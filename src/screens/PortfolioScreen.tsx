@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: 100,
   },
   tradeRow: {
     flexDirection: 'row',

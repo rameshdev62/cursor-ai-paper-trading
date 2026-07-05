@@ -21,6 +21,7 @@ export interface ApiWatchlistItem {
   option_type?: string | null;
   strike_price?: string | null;
   expiry?: string | null;
+  trends?: string;
 }
 
 let onTokenExpired: (() => void) | null = null;
@@ -58,18 +59,29 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   }
 }
 
-export function fetchWatchlist(): Promise<ApiWatchlistItem[]> {
-  return apiFetch<ApiWatchlistItem[]>('/watchlist');
+export function fetchWatchlist(watchlistName?: string): Promise<ApiWatchlistItem[]> {
+  const query = watchlistName ? `?watchlist_name=${encodeURIComponent(watchlistName)}` : '';
+  return apiFetch<ApiWatchlistItem[]>(`/watchlist${query}`);
+}
+
+export function refreshWatchlistLTP(watchlistName?: string): Promise<{ success: boolean; updated?: number }> {
+  const query = watchlistName ? `?watchlist_name=${encodeURIComponent(watchlistName)}` : '';
+  return apiFetch(`/watchlist/refresh-ltp${query}`, { method: 'POST' });
+}
+
+export function refreshSingleWatchlistLTP(watchId: number): Promise<{ success: boolean; ltp?: number; symbol?: string; error?: string; trends?: Record<string, string | null> }> {
+  return apiFetch(`/watchlist/${watchId}/refresh-ltp`, { method: 'POST' });
 }
 
 export function addToWatchlist(
   symbol: string,
   exchange = 'NSE',
-  token?: string
+  token?: string,
+  watchlistName = 'Default'
 ): Promise<{ success: boolean }> {
   return apiFetch('/watchlist', {
     method: 'POST',
-    body: JSON.stringify({ symbol, exchange, token: token ?? null }),
+    body: JSON.stringify({ symbol, exchange, token: token ?? null, watchlist_name: watchlistName }),
   });
 }
 

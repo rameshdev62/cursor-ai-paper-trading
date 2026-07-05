@@ -81,3 +81,21 @@ export async function loadNfoCsvPath(): Promise<string> {
 export async function saveNfoCsvPath(path: string): Promise<void> {
   await AsyncStorage.setItem(KEYS.nfoCsvPath, path);
 }
+
+export async function loadWatchlistTabs(): Promise<string[]> {
+  const raw = await AsyncStorage.getItem('@papertrade/watchlistTabs');
+  return raw ? JSON.parse(raw) : ['Default'];
+}
+
+export async function saveWatchlistTabs(tabs: string[]): Promise<void> {
+  await AsyncStorage.setItem('@papertrade/watchlistTabs', JSON.stringify(tabs));
+}
+
+export async function loadActiveWatchlistTab(): Promise<string> {
+  const raw = await AsyncStorage.getItem('@papertrade/activeWatchlistTab');
+  return raw ?? 'Default';
+}
+
+export async function saveActiveWatchlistTab(tab: string): Promise<void> {
+  await AsyncStorage.setItem('@papertrade/activeWatchlistTab', tab);
+}
